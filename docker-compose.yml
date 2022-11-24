@@ -1,0 +1,38 @@
+version: '3.7'
+services:
+
+  postgres:
+    image: postgres:latest
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
+    volumes:
+      - postgres_volume:/var/lib/postgresql/data
+  
+  django:
+    build:
+      context: .
+    command: bash -c 'while !</dev/tcp/postgres/5432; do sleep 1; done; poetry run gunicorn config.wsgi:app --bind 0.0.0.0:8000 --reload -w 4'
+    volumes:
+      - static:/app/staticfiles
+      - .:/app/.
+    depends_on:
+      - postgres
+    restart: on-failure
+  
+  nginx:
+    command: nginx -g "daemon off;"
+    depends_on:
+      - django
+    image: nginx:alpine
+    restart: on-failure
+    volumes:
+      - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - static:/var/www/app/static
+    ports:
+      - '127.0.0.1:8000:8000'
+
+volumes:
+  postgres_volume:
+  static:
